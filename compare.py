@@ -46,14 +46,23 @@ def show_compare(df):
 
         col1, col2 = st.columns(2)
         with col1:
+            st.markdown(f"### 📈 Line Chart: {y_axis} vs {x_axis}")
             st.line_chart(viz_df1.set_index(x1)[y_axis])
-            st.bar_chart(viz_df1.set_index(x1)[y_axis])
+
+            st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
+            bar_data_1 = viz_df1.groupby(x1)[y_axis].mean().sort_index()
+            st.bar_chart(bar_data_1)
+
         with col2:
+            st.markdown(f"### 📈 Line Chart: {y_axis} vs {x_axis}")
             st.line_chart(viz_df2.set_index(x2)[y_axis])
-            st.bar_chart(viz_df2.set_index(x2)[y_axis])
+
+            st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
+            bar_data_2 = viz_df2.groupby(x2)[y_axis].mean().sort_index()
+            st.bar_chart(bar_data_2)
 
         st.markdown("---")
-        st.markdown("## 🔵 Combined Scatter Comparison")
+        st.markdown("## 🔹 Combined Scatter Comparison")
         viz_df1['District'] = district1
         viz_df2['District'] = district2
         combined_df = pd.concat([
