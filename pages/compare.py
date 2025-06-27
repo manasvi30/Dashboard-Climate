@@ -5,6 +5,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_samples, silhouette_score
+import matplotlib.cm as cm
 import numpy as np
 
 # -------------------- Page setup -------------------- #
@@ -169,35 +171,93 @@ if len(selected_pairplot_cols) >= 2:
 st.markdown("---")
 st.markdown("## 🧬 Weather Pattern Clustering")
 
-cluster_features = st.multiselect(
-    "📌 Select Features for Clustering",
-    numeric_columns,
-    default=[y_axis],
-    key="clustering_features"
-)
+clustering_mode = st.radio("Choose clustering mode:", [
+    "Per District (Time-Series)", 
+    "All Districts (Aggregate + Silhouette)"
+])
 
-if len(cluster_features) >= 2:
-    n_clusters = st.slider("🔢 Select Number of Clusters (K)", 2, 10, 3)
+# -------------------- Mode 1: Per District Clustering -------------------- #
+if clustering_mode == "Per District (Time-Series)":
+    cluster_features = st.multiselect(
+        "📌 Select Features for Clustering",
+        numeric_columns,
+        default=[y_axis],
+        key="clustering_features"
+    )
 
-    for df_set, dist in zip([viz_df1, viz_df2], [district1, district2]):
-        st.markdown(f"### 📍 {dist} Clustering")
-        cluster_df = df_set[cluster_features].dropna()
+    if len(cluster_features) >= 2:
+        n_clusters = st.slider("🔢 Select Number of Clusters (K)", 2, 10, 3)
+
+        for df_set, dist in zip([viz_df1, viz_df2], [district1, district2]):
+            st.markdown(f"### 📍 {dist} Clustering")
+            cluster_df = df_set[cluster_features].dropna()
+            scaler = StandardScaler()
+            scaled_data = scaler.fit_transform(cluster_df)
+
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init="auto")
+            cluster_df['Cluster'] = kmeans.fit_predict(scaled_data)
+
+            x_plot = st.selectbox("🧭 X-axis for Cluster Plot", cluster_features, index=0, key=f"x_{dist}")
+            y_plot = st.selectbox("🧭 Y-axis for Cluster Plot", cluster_features, index=1 if len(cluster_features) > 1 else 0, key=f"y_{dist}")
+
+            scatter_cluster = alt.Chart(cluster_df).mark_circle(size=60).encode(
+                x=alt.X(x_plot, title=x_plot),
+                y=alt.Y(y_plot, title=y_plot),
+                color=alt.Color('Cluster:N', legend=alt.Legend(title="Cluster")),
+                tooltip=cluster_features + ['Cluster']
+            ).interactive().properties(height=400)
+
+            st.altair_chart(scatter_cluster, use_container_width=True)
+    else:
+        st.info("Please select at least two numeric features to perform clustering.")
+
+# -------------------- Mode 2: All Districts + Silhouette -------------------- #
+elif clustering_mode == "All Districts (Aggregate + Silhouette)":
+    district_cluster_cols = st.multiselect(
+        "📌 Select Features to Cluster All Districts",
+        numeric_columns,
+        key="district_silhouette"
+    )
+
+    if len(district_cluster_cols) >= 2:
+        n_clusters = st.slider("🔢 Select Number of Clusters (K)", 2, 10, 3, key="silhouette_k")
+
+        cluster_df = df[['District'] + district_cluster_cols].dropna()
+        agg_df = cluster_df.groupby('District').mean().reset_index()
+
         scaler = StandardScaler()
-        scaled_data = scaler.fit_transform(cluster_df)
+        scaled_df = scaler.fit_transform(agg_df[district_cluster_cols])
 
         kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init="auto")
-        cluster_df['Cluster'] = kmeans.fit_predict(scaled_data)
+        labels = kmeans.fit_predict(scaled_df)
+        agg_df['Cluster'] = labels
 
-        x_plot = st.selectbox("🧭 X-axis for Cluster Plot", cluster_features, index=0, key=f"x_{dist}")
-        y_plot = st.selectbox("🧭 Y-axis for Cluster Plot", cluster_features, index=1 if len(cluster_features) > 1 else 0, key=f"y_{dist}")
+        # 📉 Silhouette Score
+        silhouette_vals = silhouette_samples(scaled_df, labels)
+        avg_score = silhouette_score(scaled_df, labels)
+        st.markdown(f"**Average Silhouette Score:** `{avg_score:.3f}`")
 
-        scatter_cluster = alt.Chart(cluster_df).mark_circle(size=60).encode(
-            x=alt.X(x_plot, title=x_plot),
-            y=alt.Y(y_plot, title=y_plot),
-            color=alt.Color('Cluster:N', legend=alt.Legend(title="Cluster")),
-            tooltip=cluster_features + ['Cluster']
-        ).interactive().properties(height=400)
+        # 📊 Silhouette Plot
+        fig, ax = plt.subplots(figsize=(7, 4))
+        y_lower = 10
 
-        st.altair_chart(scatter_cluster, use_container_width=True)
-else:
-    st.info("Please select at least two numeric features to perform clustering.")
+        for i in range(n_clusters):
+            cluster_vals = silhouette_vals[labels == i]
+            cluster_vals.sort()
+            size = cluster_vals.shape[0]
+            y_upper = y_lower + size
+
+            color = cm.nipy_spectral(float(i) / n_clusters)
+            ax.fill_betweenx(np.arange(y_lower, y_upper), 0, cluster_vals,
+                             facecolor=color, edgecolor=color, alpha=0.7)
+            ax.text(-0.05, y_lower + 0.5 * size, str(i))
+            y_lower = y_upper + 10
+
+        ax.axvline(avg_score, color="red", linestyle="--")
+        ax.set_xlabel("Silhouette Coefficient")
+        ax.set_ylabel("Cluster")
+        ax.set_title("Silhouette Plot for All-District K-Means Clustering")
+        st.pyplot(fig)
+    else:
+        st.info("Please select at least two features to perform silhouette-based clustering.")
+

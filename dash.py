@@ -235,3 +235,35 @@ if len(cluster_features) >= 2:
     st.altair_chart(scatter_cluster, use_container_width=True)
 else:
     st.info("Please select at least two numeric features to perform clustering.")
+
+st.markdown("---")
+st.markdown("## 🚨 Outlier / Anomaly Detection")
+
+# --- Select variable and district ---
+outlier_col = st.selectbox("Select Variable to Detect Anomalies", numeric_columns, key="outlier_var")
+outlier_district = st.selectbox("Select District", sorted(df['District'].unique()), key="outlier_district")
+
+# --- Filter data for selected district ---
+filtered_df = df[df['District'] == outlier_district].copy()
+
+# --- Add Z-score column ---
+filtered_df["Z_Score"] = (filtered_df[outlier_col] - filtered_df[outlier_col].mean()) / filtered_df[outlier_col].std()
+
+# --- Define threshold and flag anomalies ---
+threshold = 2  # can be user-selected
+filtered_df["Anomaly"] = filtered_df["Z_Score"].abs() > threshold
+
+# --- Plot ---
+fig = px.line(filtered_df, x="Date", y=outlier_col, title=f"{outlier_col} Over Time in {outlier_district}")
+fig.add_scatter(x=filtered_df[filtered_df["Anomaly"]]["Date"],
+                y=filtered_df[filtered_df["Anomaly"]][outlier_col],
+                mode='markers',
+                marker=dict(color='red', size=10),
+                name="Anomalies")
+
+st.plotly_chart(fig, use_container_width=True)
+
+# --- Show anomaly table ---
+st.markdown("### 🧾 Anomalies Detected")
+st.dataframe(filtered_df[filtered_df["Anomaly"]][["Date", outlier_col, "Z_Score"]])
+
