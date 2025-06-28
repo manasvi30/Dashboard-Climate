@@ -44,19 +44,16 @@ def show_compare(df):
             st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
             bar_data_1 = viz_df1.groupby(x1)[y_axis].mean().sort_index()
             st.bar_chart(bar_data_1)
-            with st.expander("📈 Optional: Add Rolling Average Line"):
-                window1 = st.slider(f"Rolling Window (days) for {district1}", 1, 60, 7, key="window1")
-                viz_df1[f'{y_axis}_Smoothed'] = viz_df1[y_axis].rolling(window=window1).mean()
-
-            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs {x_axis}")
+           
+            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs {x1}")
             chart_type1 = st.radio(f"Chart Type for {district1}", ["Line Chart", "Area Chart"], horizontal=True, key="chart_type1")
-            chart_data1 = viz_df1.set_index(x1)[[y_axis, f'{y_axis}_Smoothed']]
+            # Use only raw data
+            chart_data1 = viz_df1.set_index(x1)[[y_axis]]
+
             if chart_type1 == "Line Chart":
                 st.line_chart(chart_data1)
             else:
                 st.area_chart(chart_data1)
-            csv1 = viz_df1[[x1, y_axis, f'{y_axis}_Smoothed']].dropna().to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download CSV for District 1", csv1, f"{district1}_smoothed_data.csv", "text/csv")
 
 
         with col2:
@@ -66,20 +63,19 @@ def show_compare(df):
             st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
             bar_data_2 = viz_df2.groupby(x2)[y_axis].mean().sort_index()
             st.bar_chart(bar_data_2)
-            with st.expander("📈 Optional: Add Rolling Average Line"):
-                window2 = st.slider(f"Rolling Window (days) for {district2}", 1, 60, 7, key="window2")
-                viz_df2[f'{y_axis}_Smoothed'] = viz_df2[y_axis].rolling(window=window2).mean()
 
-            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs {x_axis}")
-            chart_type2 = st.radio(f"Chart Type for {district2}", ["Line Chart", "Area Chart"], horizontal=True, key="chart_type2")
-            chart_data2 = viz_df2.set_index(x2)[[y_axis, f'{y_axis}_Smoothed']]
+            st.markdown(f"### 📈 Line or Area Chart for {district2}: {y_axis} vs {x2}")
+            chart_type2 = st.radio(
+            f"Chart Type for {district2}", 
+            ["Line Chart", "Area Chart"], 
+            horizontal=True, 
+            key=f"chart_type_{district2}"
+            )
+            chart_data2 = viz_df2.set_index(x2)[[y_axis]]
             if chart_type2 == "Line Chart":
                 st.line_chart(chart_data2)
             else:
                 st.area_chart(chart_data2)
-            csv2 = viz_df2[[x2, y_axis, f'{y_axis}_Smoothed']].dropna().to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download CSV for District 2", csv2, f"{district2}_smoothed_data.csv", "text/csv")
-
 
     with tab2:
         st.markdown("## 🔹 Combined Scatter Comparison")
