@@ -8,7 +8,16 @@ from sklearn.preprocessing import StandardScaler
 import plotly.express as px
 
 def show_dashboard(df):
-    st.header("\U0001F4CA District-wise Yearly Climate")
+    st.header("\U0001F4CA District-wise Climate Overview")
+
+    df.columns = df.columns.str.strip()
+    date_col = next((col for col in df.columns if col.lower() == 'date'), None)
+    if not date_col:
+        st.error("❌ No column named 'date' found. Please check your file.")
+        return
+    df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+
+    freq_option = st.radio("Choose Data Frequency", ["Daily", "Monthly", "Yearly"], horizontal=True)
 
     available_columns = [col for col in df.columns if col != 'Unnamed: 0']
     numeric_columns = df.select_dtypes(include='number').columns.tolist()
@@ -23,13 +32,19 @@ def show_dashboard(df):
     with col3:
         y_axis = st.selectbox("Y-axis Column", numeric_columns)
 
-    filtered_df = df[df['District'] == district]
-    st.subheader(f"{district}")
+    filtered_df = df[df['District'] == district].copy()
+
+    if freq_option == "Monthly":
+        filtered_df['Period'] = filtered_df[date_col].dt.to_period('M').astype(str)
+    elif freq_option == "Yearly":
+        filtered_df['Period'] = filtered_df[date_col].dt.year.astype(str)
+    else:
+        filtered_df['Period'] = filtered_df[date_col].astype(str)
+
+    x_axis_used = 'Period'
+    st.subheader(f"{district} ({freq_option} view)")
 
     viz_df = filtered_df.copy()
-    x_axis_used = x_axis
-
-    # Pairplot define
     default_pairplot = [y_axis]
     if x_axis in numeric_columns and x_axis != y_axis:
         default_pairplot.append(x_axis)
@@ -41,9 +56,10 @@ def show_dashboard(df):
 
         st.markdown("### \U0001F4CA Feature Statistics")
         st.dataframe(viz_df.select_dtypes(include='number').describe().T, use_container_width=True)
+
         plot_data = viz_df[[x_axis_used, y_axis]].dropna()
         x_data = plot_data[x_axis_used]
-        plot_data[x_axis_used] = pd.to_datetime(x_data) if pd.api.types.is_datetime64_any_dtype(x_data) else x_data.astype(str)
+        plot_data[x_axis_used] = pd.to_datetime(x_data, errors='coerce') if pd.api.types.is_datetime64_any_dtype(x_data) else x_data.astype(str)
 
         col3, col4 = st.columns(2)
         with col3:
@@ -68,19 +84,37 @@ def show_dashboard(df):
         fig = px.bar(bar_data, x=x_axis_used, y=y_axis)
         st.plotly_chart(fig, use_container_width=False)
 
-
     with tab2:
-        st.markdown(f"#### \U0001F4C8 Line or Area Chart {y_axis} vs {x_axis_used}")
+        # Convert x-axis to datetime
+        if freq_option == "Monthly":
+            plot_data['Period'] = pd.to_datetime(plot_data[x_axis_used] + "-01", errors='coerce')
+        elif freq_option == "Yearly":
+            plot_data['Period'] = pd.to_datetime(plot_data[x_axis_used] + "-01-01", errors='coerce')
+        else:
+            plot_data['Period'] = pd.to_datetime(plot_data[x_axis_used], errors='coerce')
 
+        # Aggregate 
+        agg_data = plot_data.groupby('Period', as_index=False)[y_axis].mean()
+
+        st.markdown(f"#### 📈 Line or Area Chart: Average {y_axis} vs {x_axis_used}")
         chart_type = st.radio("Chart Type", ["Line Chart", "Area Chart"], horizontal=True)
-        chart_data = plot_data.set_index(x_axis_used)[[y_axis]]
 
         if chart_type == "Line Chart":
-            st.line_chart(chart_data)
+            chart = alt.Chart(agg_data).mark_line().encode(
+                x=alt.X("Period:T", title="Time"),
+                y=alt.Y(y_axis, title=y_axis),
+                tooltip=["Period", y_axis]
+            ).interactive()
         else:
-            st.area_chart(chart_data)
+            chart = alt.Chart(agg_data).mark_area(opacity=0.5).encode(
+                x=alt.X("Period:T", title="Time"),
+                y=alt.Y(y_axis, title=y_axis),
+                tooltip=["Period", y_axis]
+            ).interactive()
 
-        
+        st.altair_chart(chart, use_container_width=True)
+
+
         st.markdown("### \U0001F326\uFE0F Distribution of Weather Parameters")
         default_params = [y_axis]
         if x_axis in numeric_columns and x_axis != y_axis:
@@ -107,11 +141,8 @@ def show_dashboard(df):
                         y='density:Q'
                     ).properties(height=250)
                     st.altair_chart(kde, use_container_width=True)
-        st.markdown("### 📉 Pairwise Relationships (Pairplot)")
-        default_pairplot = [y_axis]
-        if x_axis in numeric_columns and x_axis != y_axis:
-            default_pairplot.append(x_axis)
 
+        st.markdown("### 📉 Pairwise Relationships (Pairplot)")
         selected_pairplot_cols = st.multiselect(
             "Select Weather Parameters for Pairplot (Max 10 for clarity)",
             numeric_columns,

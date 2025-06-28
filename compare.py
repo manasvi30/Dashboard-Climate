@@ -13,12 +13,20 @@ def show_compare(df):
     st.header("📊 Compare Districts")
 
     df.columns = df.columns.str.strip()
-    if 'date' in df.columns:
-        df['date'] = pd.to_datetime(df['date'])
+
+    # ✅ Safely handle missing or misnamed 'date' column
+    date_col = next((col for col in df.columns if col.lower() == 'date'), None)
+    if not date_col:
+        st.error("❌ No column named 'date' found. Please check your file.")
+        return
+
+    df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
 
     numeric_columns = df.select_dtypes(include='number').columns.tolist()
     if 'Unnamed: 0' in numeric_columns:
         numeric_columns.remove('Unnamed: 0')
+
+    freq_option = st.radio("Choose Data Frequency", ["Daily", "Monthly", "Yearly"], horizontal=True)
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -30,56 +38,105 @@ def show_compare(df):
     with col4:
         y_axis = st.selectbox("Y-axis Column (Numeric)", numeric_columns)
 
+    def preprocess_data(district):
+        filtered = df[df['District'] == district].copy()
+        if freq_option == "Monthly":
+            filtered['Period'] = pd.to_datetime(filtered[date_col]).dt.to_period('M').astype(str)
+        elif freq_option == "Yearly":
+            filtered['Period'] = pd.to_datetime(filtered[date_col]).dt.year.astype(str)
+        else:
+            filtered['Period'] = pd.to_datetime(filtered[date_col]).astype(str)
+        return filtered, 'Period'
+
+    try:
+        viz_df1, x1 = preprocess_data(district1)
+        viz_df2, x2 = preprocess_data(district2)
+    except Exception as e:
+        st.error(f"⚠️ Failed during preprocessing: {e}")
+        return
+
     tab1, tab2 = st.tabs(["📈 Visual Comparison", "🧠Scatterplot and Clustering"])
 
     with tab1:
-        def preprocess_data(district):
-            filtered = df[df['District'] == district].copy()
-            return filtered, x_axis
-
-        viz_df1, x1 = preprocess_data(district1)
-        viz_df2, x2 = preprocess_data(district2)
-
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"###  {district1}")
             st.dataframe(viz_df1.head(), use_container_width=True)
 
-            st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
+            st.markdown(f"### 📈 Bar Chart: Average {y_axis} vs Period")
             bar_data_1 = viz_df1.groupby(x1)[y_axis].mean().sort_index()
             st.bar_chart(bar_data_1)
-           
-            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs {x1}")
+
+            if freq_option == "Monthly":
+                viz_df1['Period'] = pd.to_datetime(viz_df1[x1] + "-01", errors='coerce')
+            elif freq_option == "Yearly":
+                viz_df1['Period'] = pd.to_datetime(viz_df1[x1] + "-01-01", errors='coerce')
+            else:
+                viz_df1['Period'] = pd.to_datetime(viz_df1[x1], errors='coerce')
+
+            # Aggregate to avoid vertical lines
+            agg_data1 = viz_df1.groupby('Period', as_index=False)[y_axis].mean()
+
+            # Plotting
+            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs Period")
             chart_type1 = st.radio(f"Chart Type for {district1}", ["Line Chart", "Area Chart"], horizontal=True, key="chart_type1")
-            # Use only raw data
-            chart_data1 = viz_df1.set_index(x1)[[y_axis]]
 
             if chart_type1 == "Line Chart":
-                st.line_chart(chart_data1)
+                chart = alt.Chart(agg_data1).mark_line().encode(
+                    x=alt.X("Period:T", title="Time"),
+                    y=alt.Y(y_axis, title=y_axis),
+                    tooltip=["Period", y_axis]
+                ).interactive()
             else:
-                st.area_chart(chart_data1)
+                chart = alt.Chart(agg_data1).mark_area(opacity=0.5).encode(
+                    x=alt.X("Period:T", title="Time"),
+                    y=alt.Y(y_axis, title=y_axis),
+                    tooltip=["Period", y_axis]
+                ).interactive()
+
+            st.altair_chart(chart, use_container_width=True)
 
 
         with col2:
             st.markdown(f"###  {district2}")
             st.dataframe(viz_df2.head(), use_container_width=True)
 
-            st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
+            st.markdown(f"### 📈 Bar Chart: Average {y_axis} vs Period")
             bar_data_2 = viz_df2.groupby(x2)[y_axis].mean().sort_index()
             st.bar_chart(bar_data_2)
 
-            st.markdown(f"### 📈 Line or Area Chart for {district2}: {y_axis} vs {x2}")
-            chart_type2 = st.radio(
-            f"Chart Type for {district2}", 
-            ["Line Chart", "Area Chart"], 
-            horizontal=True, 
-            key=f"chart_type_{district2}"
-            )
-            chart_data2 = viz_df2.set_index(x2)[[y_axis]]
-            if chart_type2 == "Line Chart":
-                st.line_chart(chart_data2)
+           # Convert 'Period' to datetime based on frequency
+            if freq_option == "Monthly":
+                viz_df2['Period'] = pd.to_datetime(viz_df2[x2] + "-01", errors='coerce')
+            elif freq_option == "Yearly":
+                viz_df2['Period'] = pd.to_datetime(viz_df2[x2] + "-01-01", errors='coerce')
             else:
-                st.area_chart(chart_data2)
+                viz_df2['Period'] = pd.to_datetime(viz_df2[x2], errors='coerce')
+
+            agg_data2 = viz_df2.groupby('Period', as_index=False)[y_axis].mean()
+
+            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs Period")
+            chart_type2 = st.radio(
+                f"Chart Type for {district2}",
+                ["Line Chart", "Area Chart"],
+                horizontal=True,
+                key=f"chart_type_{district2}"
+            )
+
+            if chart_type2 == "Line Chart":
+                chart = alt.Chart(agg_data2).mark_line().encode(
+                    x=alt.X("Period:T", title="Time"),
+                    y=alt.Y(y_axis, title=y_axis),
+                    tooltip=["Period", y_axis]
+                ).interactive()
+            else:
+                chart = alt.Chart(agg_data2).mark_area(opacity=0.5).encode(
+                    x=alt.X("Period:T", title="Time"),
+                    y=alt.Y(y_axis, title=y_axis),
+                    tooltip=["Period", y_axis]
+                ).interactive()
+
+            st.altair_chart(chart, use_container_width=True)
 
     with tab2:
         st.markdown("## 🔹 Combined Scatter Comparison")
@@ -87,7 +144,6 @@ def show_compare(df):
         viz_df1['District'] = district1
         viz_df2['District'] = district2
 
-        # Combine and clean data
         combined_df = pd.concat([
             viz_df1[[x1, y_axis, 'District']].rename(columns={x1: 'Time'}),
             viz_df2[[x2, y_axis, 'District']].rename(columns={x2: 'Time'})
@@ -102,11 +158,9 @@ def show_compare(df):
                 color=alt.Color('District:N', legend=alt.Legend(title="District")),
                 tooltip=['Time', y_axis, 'District']
             ).interactive().properties(height=400)
-
             st.altair_chart(scatter_chart, use_container_width=True)
         else:
             st.warning("Not enough data to display the scatter chart.")
-
 
         st.markdown("## 🧠 Clustering Analysis")
         cluster_features = st.multiselect(

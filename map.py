@@ -7,6 +7,7 @@ def show_map(df):
     st.header("🗺️ Climate Choropleth Map")
 
     st.info("🌐 This choropleth map is designed for datasets containing districts from Nepal.")
+    
 
     if 'District' not in df.columns:
         st.error("❌ Your dataset must contain a 'District' column.")
@@ -14,6 +15,9 @@ def show_map(df):
 
     # Detect numeric columns for selection
     numeric_columns = df.select_dtypes(include='number').columns.tolist()
+    if 'Unnamed: 0' in numeric_columns:
+        numeric_columns.remove('Unnamed: 0')
+
     if not numeric_columns:
         st.warning("⚠️ No numeric data found to map.")
         return
