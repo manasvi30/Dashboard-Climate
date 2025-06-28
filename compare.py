@@ -26,7 +26,7 @@ def show_compare(df):
     with col4:
         y_axis = st.selectbox("Y-axis Column (Numeric)", numeric_columns)
 
-    tab1, tab2 = st.tabs([" Comparison", " Clustering Analysis"])
+    tab1, tab2, tab3 = st.tabs(["📈 Visual Comparison", "📊 Statistical Comparison", "🧠 Clustering"])
 
     with tab1:
         def preprocess_data(district):
@@ -38,30 +38,50 @@ def show_compare(df):
 
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f"### 📍 {district1}")
+            st.markdown(f"###  {district1}")
             st.dataframe(viz_df1.head(), use_container_width=True)
-        with col2:
-            st.markdown(f"### 📍 {district2}")
-            st.dataframe(viz_df2.head(), use_container_width=True)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"### 📈 Line Chart: {y_axis} vs {x_axis}")
-            st.line_chart(viz_df1.set_index(x1)[y_axis])
 
             st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
             bar_data_1 = viz_df1.groupby(x1)[y_axis].mean().sort_index()
             st.bar_chart(bar_data_1)
+            with st.expander("📈 Optional: Add Rolling Average Line"):
+                window1 = st.slider(f"Rolling Window (days) for {district1}", 1, 60, 7, key="window1")
+                viz_df1[f'{y_axis}_Smoothed'] = viz_df1[y_axis].rolling(window=window1).mean()
+
+            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs {x_axis}")
+            chart_type1 = st.radio(f"Chart Type for {district1}", ["Line Chart", "Area Chart"], horizontal=True, key="chart_type1")
+            chart_data1 = viz_df1.set_index(x1)[[y_axis, f'{y_axis}_Smoothed']]
+            if chart_type1 == "Line Chart":
+                st.line_chart(chart_data1)
+            else:
+                st.area_chart(chart_data1)
+            csv1 = viz_df1[[x1, y_axis, f'{y_axis}_Smoothed']].dropna().to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download CSV for District 1", csv1, f"{district1}_smoothed_data.csv", "text/csv")
+
 
         with col2:
-            st.markdown(f"### 📈 Line Chart: {y_axis} vs {x_axis}")
-            st.line_chart(viz_df2.set_index(x2)[y_axis])
+            st.markdown(f"###  {district2}")
+            st.dataframe(viz_df2.head(), use_container_width=True)
 
             st.markdown(f"### 📈 Bar Chart: Average {y_axis} per {x_axis}")
             bar_data_2 = viz_df2.groupby(x2)[y_axis].mean().sort_index()
             st.bar_chart(bar_data_2)
+            with st.expander("📈 Optional: Add Rolling Average Line"):
+                window2 = st.slider(f"Rolling Window (days) for {district2}", 1, 60, 7, key="window2")
+                viz_df2[f'{y_axis}_Smoothed'] = viz_df2[y_axis].rolling(window=window2).mean()
 
-        st.markdown("---")
+            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs {x_axis}")
+            chart_type2 = st.radio(f"Chart Type for {district2}", ["Line Chart", "Area Chart"], horizontal=True, key="chart_type2")
+            chart_data2 = viz_df2.set_index(x2)[[y_axis, f'{y_axis}_Smoothed']]
+            if chart_type2 == "Line Chart":
+                st.line_chart(chart_data2)
+            else:
+                st.area_chart(chart_data2)
+            csv2 = viz_df2[[x2, y_axis, f'{y_axis}_Smoothed']].dropna().to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download CSV for District 2", csv2, f"{district2}_smoothed_data.csv", "text/csv")
+
+
+    with tab2:
         st.markdown("## 🔹 Combined Scatter Comparison")
         viz_df1['District'] = district1
         viz_df2['District'] = district2
@@ -79,7 +99,6 @@ def show_compare(df):
         ).interactive().properties(height=400)
         st.altair_chart(scatter_chart, use_container_width=True)
 
-        st.markdown("---")
         st.markdown("## 🔗 Correlation Between Weather Parameters")
         col1, col2 = st.columns(2)
         for i, (df_set, dist) in enumerate(zip([viz_df1, viz_df2], [district1, district2])):
@@ -95,7 +114,6 @@ def show_compare(df):
             with (col1 if i == 0 else col2):
                 st.altair_chart(chart, use_container_width=True)
 
-        st.markdown("---")
         st.markdown("## 📉 Pairwise Relationships (Pairplot)")
         selected_pairplot_cols = st.multiselect(
             "Select Weather Parameters for Pairplot",
@@ -103,18 +121,17 @@ def show_compare(df):
             default=[y_axis],
             max_selections=6
         )
-
         if len(selected_pairplot_cols) >= 2:
             col1, col2 = st.columns(2)
-            with st.spinner("Generating pairplots..."):
-                with col1:
-                    fig1 = sns.pairplot(viz_df1[selected_pairplot_cols], corner=True)
-                    st.pyplot(fig1)
-                with col2:
-                    fig2 = sns.pairplot(viz_df2[selected_pairplot_cols], corner=True)
-                    st.pyplot(fig2)
+            with col1:
+                fig1 = sns.pairplot(viz_df1[selected_pairplot_cols], corner=True)
+                st.pyplot(fig1)
+            with col2:
+                fig2 = sns.pairplot(viz_df2[selected_pairplot_cols], corner=True)
+                st.pyplot(fig2)
 
-    with tab2:
+    with tab3:
+        st.markdown("## 🧠 Clustering Analysis")
         cluster_features = st.multiselect(
             "Select Features for Clustering",
             numeric_columns,
@@ -123,8 +140,8 @@ def show_compare(df):
         )
 
         if len(cluster_features) >= 2:
-            x_plot = st.selectbox(" X-axis for Cluster Plot", cluster_features, index=0, key="shared_x")
-            y_plot = st.selectbox(" Y-axis for Cluster Plot", cluster_features, index=1 if len(cluster_features) > 1 else 0, key="shared_y")
+            x_plot = st.selectbox("X-axis for Cluster Plot", cluster_features, index=0, key="shared_x")
+            y_plot = st.selectbox("Y-axis for Cluster Plot", cluster_features, index=1 if len(cluster_features) > 1 else 0, key="shared_y")
 
             clustering_mode = st.radio("Choose clustering mode:", [
                 "Per District (Time-Series)", 
@@ -132,7 +149,7 @@ def show_compare(df):
             ])
 
             if clustering_mode == "Per District (Time-Series)":
-                n_clusters = st.slider(" Select Number of Clusters (K)", 2, 10, 3)
+                n_clusters = st.slider("Select Number of Clusters (K)", 2, 10, 3)
                 for df_set, dist in zip([viz_df1, viz_df2], [district1, district2]):
                     st.markdown(f"### 📍 {dist} Clustering")
                     cluster_df = df_set[cluster_features].dropna()
@@ -179,5 +196,4 @@ def show_compare(df):
                 ax.set_ylabel("Cluster")
                 ax.set_title("Silhouette Plot for All-District K-Means Clustering")
                 st.pyplot(fig)
-        else:
-            st.info("Please select at least two numeric features to perform clustering.")
+
