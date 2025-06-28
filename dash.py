@@ -35,21 +35,16 @@ def show_dashboard(df):
         default_pairplot.append(x_axis)
 
     tab1, tab2, tab3 = st.tabs(["Overview", "Visualizations", "Advanced Analysis"])
-
     with tab1:
-        plot_data = viz_df[[x_axis_used, y_axis]].dropna()
-        x_data = plot_data[x_axis_used]
-        plot_data[x_axis_used] = pd.to_datetime(x_data) if pd.api.types.is_datetime64_any_dtype(x_data) else x_data.astype(str)
-
-        if pd.api.types.is_datetime64_any_dtype(plot_data[x_axis_used]):
-            start_date, end_date = st.date_input("\U0001F4C6 Filter by Date Range", [plot_data[x_axis_used].min(), plot_data[x_axis_used].max()])
-            plot_data = plot_data[(plot_data[x_axis_used] >= pd.to_datetime(start_date)) & (plot_data[x_axis_used] <= pd.to_datetime(end_date))]
-
         st.markdown("### \U0001F4CB Sample Data")
         st.dataframe(viz_df.head(), use_container_width=True)
 
         st.markdown("### \U0001F4CA Feature Statistics")
         st.dataframe(viz_df.select_dtypes(include='number').describe().T, use_container_width=True)
+        plot_data = viz_df[[x_axis_used, y_axis]].dropna()
+        x_data = plot_data[x_axis_used]
+        plot_data[x_axis_used] = pd.to_datetime(x_data) if pd.api.types.is_datetime64_any_dtype(x_data) else x_data.astype(str)
+
         col3, col4 = st.columns(2)
         with col3:
             st.markdown(f"#### \U0001F535 Scatter Plot: {y_axis} vs {x_axis_used}")
@@ -76,20 +71,15 @@ def show_dashboard(df):
 
     with tab2:
         st.markdown(f"#### \U0001F4C8 Line or Area Chart {y_axis} vs {x_axis_used}")
-        with st.expander("\U0001F4C8 Optional: Add Rolling Average Line"):
-            window = st.slider("Rolling Window (days)", 1, 60, 7)
-            plot_data[f'{y_axis}_Smoothed'] = plot_data[y_axis].rolling(window=window).mean()
 
         chart_type = st.radio("Chart Type", ["Line Chart", "Area Chart"], horizontal=True)
-        chart_data = plot_data.set_index(x_axis_used)[[y_axis, f'{y_axis}_Smoothed']]
+        chart_data = plot_data.set_index(x_axis_used)[[y_axis]]
 
         if chart_type == "Line Chart":
             st.line_chart(chart_data)
         else:
             st.area_chart(chart_data)
-        st.markdown("### \U0001F4C5 Export Filtered Data from line or area chart")
-        csv = plot_data.to_csv(index=False).encode('utf-8')
-        st.download_button("\u2B07\uFE0F Download CSV", csv, "climate_data.csv", "text/csv")
+
         
         st.markdown("### \U0001F326\uFE0F Distribution of Weather Parameters")
         default_params = [y_axis]
