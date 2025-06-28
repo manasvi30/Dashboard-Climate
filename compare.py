@@ -12,6 +12,11 @@ import matplotlib.cm as cm
 def show_compare(df):
     st.header("📊 Compare Districts")
 
+    df.columns = df.columns.str.strip()
+    if 'date' in df.columns:
+        df['date'] = pd.to_datetime(df['date'])
+
+    available_columns = [col for col in df.columns if col != 'Unnamed: 0']
     numeric_columns = df.select_dtypes(include='number').columns.tolist()
     if 'Unnamed: 0' in numeric_columns:
         numeric_columns.remove('Unnamed: 0')
@@ -22,11 +27,11 @@ def show_compare(df):
     with col2:
         district2 = st.selectbox("Select Second District", sorted(df['District'].unique()), key="district2")
     with col3:
-        x_axis = st.selectbox("X-axis Column", df.columns)
+        x_axis = st.selectbox("X-axis Column", [col for col in df.columns if col != 'Unnamed: 0'])
     with col4:
         y_axis = st.selectbox("Y-axis Column (Numeric)", numeric_columns)
 
-    tab1, tab2, tab3 = st.tabs(["📈 Visual Comparison", "📊 Statistical Comparison", "🧠 Clustering"])
+    tab1, tab2 = st.tabs(["📈 Visual Comparison", "🧠Scatterplot and Clustering"])
 
     with tab1:
         def preprocess_data(district):
@@ -79,54 +84,36 @@ def show_compare(df):
 
     with tab2:
         st.markdown("## 🔹 Combined Scatter Comparison")
+
         viz_df1['District'] = district1
         viz_df2['District'] = district2
+
+        # Combine and clean data
         combined_df = pd.concat([
             viz_df1[[x1, y_axis, 'District']].rename(columns={x1: 'Time'}),
             viz_df2[[x2, y_axis, 'District']].rename(columns={x2: 'Time'})
-        ])
+        ], ignore_index=True)
+
+        # Convert to datetime safely
         combined_df['Time'] = pd.to_datetime(combined_df['Time'], errors='coerce')
 
-        scatter_chart = alt.Chart(combined_df).mark_circle(size=60).encode(
-            x='Time:T',
-            y=alt.Y(y_axis, title=y_axis),
-            color=alt.Color('District:N'),
-            tooltip=['Time', y_axis, 'District']
-        ).interactive().properties(height=400)
-        st.altair_chart(scatter_chart, use_container_width=True)
+        # Drop rows with NaT or missing y
+        combined_df = combined_df.dropna(subset=['Time', y_axis])
 
-        st.markdown("## 🔗 Correlation Between Weather Parameters")
-        col1, col2 = st.columns(2)
-        for i, (df_set, dist) in enumerate(zip([viz_df1, viz_df2], [district1, district2])):
-            corr_matrix = df_set[numeric_columns].corr()
-            corr_data = corr_matrix.reset_index().melt('index')
-            corr_data.columns = ['Variable 1', 'Variable 2', 'Correlation']
-            chart = alt.Chart(corr_data).mark_rect().encode(
-                x=alt.X('Variable 2:O', sort=None),
-                y=alt.Y('Variable 1:O', sort=None),
-                color=alt.Color('Correlation:Q', scale=alt.Scale(scheme='redblue', domain=(-1, 1))),
-                tooltip=['Variable 1', 'Variable 2', 'Correlation']
-            ).properties(title=f"{dist} Correlation Matrix", height=350)
-            with (col1 if i == 0 else col2):
-                st.altair_chart(chart, use_container_width=True)
+        # Plot
+        if not combined_df.empty:
+            scatter_chart = alt.Chart(combined_df).mark_circle(size=60).encode(
+                x=alt.X('Time:T', title="Time"),
+                y=alt.Y(y_axis, title=y_axis),
+                color=alt.Color('District:N', legend=alt.Legend(title="District")),
+                tooltip=['Time', y_axis, 'District']
+            ).interactive().properties(height=400)
 
-        st.markdown("## 📉 Pairwise Relationships (Pairplot)")
-        selected_pairplot_cols = st.multiselect(
-            "Select Weather Parameters for Pairplot",
-            numeric_columns,
-            default=[y_axis],
-            max_selections=6
-        )
-        if len(selected_pairplot_cols) >= 2:
-            col1, col2 = st.columns(2)
-            with col1:
-                fig1 = sns.pairplot(viz_df1[selected_pairplot_cols], corner=True)
-                st.pyplot(fig1)
-            with col2:
-                fig2 = sns.pairplot(viz_df2[selected_pairplot_cols], corner=True)
-                st.pyplot(fig2)
+            st.altair_chart(scatter_chart, use_container_width=True)
+        else:
+            st.warning("Not enough data to display the scatter chart.")
 
-    with tab3:
+
         st.markdown("## 🧠 Clustering Analysis")
         cluster_features = st.multiselect(
             "Select Features for Clustering",
