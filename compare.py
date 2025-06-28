@@ -16,7 +16,6 @@ def show_compare(df):
     if 'date' in df.columns:
         df['date'] = pd.to_datetime(df['date'])
 
-    available_columns = [col for col in df.columns if col != 'Unnamed: 0']
     numeric_columns = df.select_dtypes(include='number').columns.tolist()
     if 'Unnamed: 0' in numeric_columns:
         numeric_columns.remove('Unnamed: 0')
@@ -94,13 +93,8 @@ def show_compare(df):
             viz_df2[[x2, y_axis, 'District']].rename(columns={x2: 'Time'})
         ], ignore_index=True)
 
-        # Convert to datetime safely
         combined_df['Time'] = pd.to_datetime(combined_df['Time'], errors='coerce')
-
-        # Drop rows with NaT or missing y
         combined_df = combined_df.dropna(subset=['Time', y_axis])
-
-        # Plot
         if not combined_df.empty:
             scatter_chart = alt.Chart(combined_df).mark_circle(size=60).encode(
                 x=alt.X('Time:T', title="Time"),
