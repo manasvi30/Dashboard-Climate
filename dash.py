@@ -8,14 +8,36 @@ from sklearn.preprocessing import StandardScaler
 import plotly.express as px
 
 def show_dashboard(df):
-    st.header("\U0001F4CA District-wise Climate Overview")
+    st.markdown(
+        """
+        <div style="display: flex; align-items: center;">
+            <img src="https://cdn-icons-png.flaticon.com/512/7756/7756168.png" width="24" style="margin-right: 8px;">
+            <h2 style="margin: 0;">District-wise Climate Overview</h2>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     df.columns = df.columns.str.strip()
     date_col = next((col for col in df.columns if col.lower() == 'date'), None)
     if not date_col:
-        st.error("❌ No column named 'date' found. Please check your file.")
+        st.error(" No column named 'date' found. Please check your file.")
         return
     df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+
+    # Date Range 
+    min_date = df[date_col].min()
+    max_date = df[date_col].max()
+
+    start_date, end_date = st.date_input(
+        "📆 Select Date Range for Analysis",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+
+    df = df[(df[date_col] >= pd.to_datetime(start_date)) & (df[date_col] <= pd.to_datetime(end_date))]
+    st.caption(f"Data filtered from **{start_date}** to **{end_date}**")
 
     freq_option = st.radio("Choose Data Frequency", ["Daily", "Monthly", "Yearly"], horizontal=True)
 
@@ -39,83 +61,180 @@ def show_dashboard(df):
     elif freq_option == "Yearly":
         filtered_df['Period'] = filtered_df[date_col].dt.year.astype(str)
     else:
-        filtered_df['Period'] = filtered_df[date_col].astype(str)
+        filtered_df['Period'] = filtered_df[date_col].dt.date.astype(str)
 
     x_axis_used = 'Period'
-    st.subheader(f"{district} ({freq_option} view)")
-
+    st.markdown(
+        f"""
+        <h3>
+            <img src="https://cdn-icons-png.flaticon.com/512/8451/8451381.png" width="45" style="vertical-align: middle; margin-right: 6px;">
+            {district} ({freq_option} view)
+        </h3>
+        """,
+        unsafe_allow_html=True
+    )
+    
     viz_df = filtered_df.copy()
     default_pairplot = [y_axis]
     if x_axis in numeric_columns and x_axis != y_axis:
         default_pairplot.append(x_axis)
 
+    aggregated_df = viz_df.groupby('Period')[numeric_columns].mean().reset_index()
+
     tab1, tab2, tab3 = st.tabs(["Overview", "Visualizations", "Advanced Analysis"])
     with tab1:
-        st.markdown("### \U0001F4CB Sample Data")
+        #Sample Data
+        st.markdown(
+            """
+            <h3>
+                <img src="https://cdn-icons-png.flaticon.com/512/4926/4926731.png " width="40" style="vertical-align: middle; margin-right: 6px;">
+                Sample Data
+            </h3>
+            """,
+            unsafe_allow_html=True
+        )
+
         st.dataframe(viz_df.head(), use_container_width=True)
 
-        st.markdown("### \U0001F4CA Feature Statistics")
+        #Feature Statistics
+        st.markdown(
+            """
+            <h3>
+                <img src="https://cdn-icons-png.flaticon.com/512/2318/2318736.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Feature Statistics
+            </h3>
+            """,
+            unsafe_allow_html=True
+        )
         st.dataframe(viz_df.select_dtypes(include='number').describe().T, use_container_width=True)
 
         plot_data = viz_df[[x_axis_used, y_axis]].dropna()
         x_data = plot_data[x_axis_used]
         plot_data[x_axis_used] = pd.to_datetime(x_data, errors='coerce') if pd.api.types.is_datetime64_any_dtype(x_data) else x_data.astype(str)
 
+        
+        #Aggregated Data
+        st.markdown(
+        f"""
+        <h3>
+            <img src="https://cdn-icons-png.flaticon.com/512/4926/4926731.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+            {freq_option} Aggregated Data
+            </h3>)
+        </h3>
+        """,
+        unsafe_allow_html=True
+        )
+
+        st.dataframe(aggregated_df, use_container_width=True)
+        csv = aggregated_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="⬇️ Download Aggregated CSV",
+            data=csv,
+            file_name=f"{district.lower().replace(' ', '_')}_{freq_option.lower()}_aggregated.csv",
+            mime='text/csv'
+        )
+        if x_axis in aggregated_df.columns and y_axis in aggregated_df.columns:
+                    plot_data = aggregated_df[[x_axis, y_axis]].dropna()
+        else:
+            st.warning("Selected columns not available in aggregated data.")
+            return
+        
         col3, col4 = st.columns(2)
         with col3:
-            st.markdown(f"#### \U0001F535 Scatter Plot: {y_axis} vs {x_axis_used}")
+            st.markdown(
+                f"""
+                <h4>
+                    <img src="https://cdn-icons-png.flaticon.com/512/7837/7837488.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                    Scatter Plot: {y_axis} vs {x_axis}
+                </h4>
+                """,
+                unsafe_allow_html=True
+            )
+
             scatter_chart = alt.Chart(plot_data).mark_circle(size=60).encode(
-                x=alt.X(x_axis_used, title=x_axis_used),
+                x=alt.X(x_axis, title=x_axis),
                 y=alt.Y(y_axis, title=y_axis),
-                tooltip=[x_axis_used, y_axis]
+                tooltip=[x_axis, y_axis]
             ).interactive().properties(height=300)
             st.altair_chart(scatter_chart, use_container_width=True)
 
         with col4:
-            st.markdown(f"#### \U0001F4E6 Box Plot: {y_axis} Distribution")
+            st.markdown(
+                f"""
+                <h4>
+                    <img src="https://cdn-icons-png.flaticon.com/512/4215/4215828.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                    Box Plot: {y_axis} vs {x_axis}
+                </h4>
+                """,
+                unsafe_allow_html=True
+            )
             box_chart = alt.Chart(plot_data).mark_boxplot(extent='min-max').encode(
                 y=alt.Y(y_axis, title=y_axis),
                 tooltip=[y_axis]
             ).properties(height=300)
             st.altair_chart(box_chart, use_container_width=True)
 
-        st.markdown(f"#### 📊 Bar Chart: Average {y_axis} per {x_axis_used}")
-        bar_data = plot_data.groupby(x_axis_used)[y_axis].mean().sort_index().reset_index()
-        fig = px.bar(bar_data, x=x_axis_used, y=y_axis)
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/3586/3586022.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Bar Chart: {y_axis} vs {x_axis}
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
+        fig = px.bar(plot_data, x=x_axis, y=y_axis)
         st.plotly_chart(fig, use_container_width=False)
 
+
     with tab2:
-        # Convert x-axis to datetime
+        # Pull y and Period columns
+        plot_data = aggregated_df[[y_axis, 'Period']].dropna().copy()
+
+        # Convert Period to datetime depending on frequency
         if freq_option == "Monthly":
-            plot_data['Period'] = pd.to_datetime(plot_data[x_axis_used] + "-01", errors='coerce')
+            plot_data['Period'] = pd.to_datetime(plot_data['Period'], format="%Y-%m", errors="coerce")
         elif freq_option == "Yearly":
-            plot_data['Period'] = pd.to_datetime(plot_data[x_axis_used] + "-01-01", errors='coerce')
-        else:
-            plot_data['Period'] = pd.to_datetime(plot_data[x_axis_used], errors='coerce')
+            plot_data['Period'] = pd.to_datetime(plot_data['Period'], format="%Y", errors="coerce")
+        else:  # Daily
+            plot_data['Period'] = pd.to_datetime(plot_data['Period'], errors="coerce")
 
-        # Aggregate 
-        agg_data = plot_data.groupby('Period', as_index=False)[y_axis].mean()
+        # Set appropriate date format 
+        x_format = "%Y-%m-%d" if freq_option == "Daily" else "%Y-%m" if freq_option == "Monthly" else "%Y"
 
-        st.markdown(f"#### 📈 Line or Area Chart: Average {y_axis} vs {x_axis_used}")
+        # Choose chart type
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/7495/7495244.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Line or Area Chart {y_axis} over Time
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
         chart_type = st.radio("Chart Type", ["Line Chart", "Area Chart"], horizontal=True)
 
-        if chart_type == "Line Chart":
-            chart = alt.Chart(agg_data).mark_line().encode(
-                x=alt.X("Period:T", title="Time"),
-                y=alt.Y(y_axis, title=y_axis),
-                tooltip=["Period", y_axis]
-            ).interactive()
-        else:
-            chart = alt.Chart(agg_data).mark_area(opacity=0.5).encode(
-                x=alt.X("Period:T", title="Time"),
-                y=alt.Y(y_axis, title=y_axis),
-                tooltip=["Period", y_axis]
-            ).interactive()
+        mark = alt.Chart(plot_data).mark_area(opacity=0.5) if chart_type == "Area Chart" else alt.Chart(plot_data).mark_line()
+
+        # Create chart
+        chart = mark.encode(
+            x=alt.X("Period:T", title="Time", axis=alt.Axis(format=x_format, labelAngle=-45)),
+            y=alt.Y(y_axis, title=y_axis),
+            tooltip=["Period", y_axis]
+        ).interactive()
 
         st.altair_chart(chart, use_container_width=True)
 
-
-        st.markdown("### \U0001F326\uFE0F Distribution of Weather Parameters")
+        #Distribution
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/3586/3586022.png" width="20" style="vertical-align: middle; margin-right: 6px;">
+                Distribution of Weather Parameters
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
         default_params = [y_axis]
         if x_axis in numeric_columns and x_axis != y_axis:
             default_params.append(x_axis)
@@ -123,7 +242,16 @@ def show_dashboard(df):
         selected_params = st.multiselect("Select Weather Parameters to Visualize", numeric_columns, default=default_params)
         if selected_params:
             for param in selected_params:
-                st.markdown(f"### \U0001F4CA Distribution of {param}")
+                st.markdown(
+                    f"""
+                    <h4>
+                        <img src="https://cdn-icons-png.flaticon.com/512/3586/3586022.png" width="20" style="vertical-align: middle; margin-right: 6px;">
+                        Distribution of {param}
+                    </h4>
+                    """,
+                    unsafe_allow_html=True
+                )
+
                 col1, col2 = st.columns(2)
                 with col1:
                     hist = alt.Chart(viz_df).mark_bar(opacity=0.7, color="#54717A").encode(
@@ -141,8 +269,16 @@ def show_dashboard(df):
                         y='density:Q'
                     ).properties(height=250)
                     st.altair_chart(kde, use_container_width=True)
-
-        st.markdown("### 📉 Pairwise Relationships (Pairplot)")
+        #Pairplot
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/3586/3586022.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Pairwise Relationships (Pairplot)
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
         selected_pairplot_cols = st.multiselect(
             "Select Weather Parameters for Pairplot (Max 10 for clarity)",
             numeric_columns,
@@ -157,7 +293,15 @@ def show_dashboard(df):
         else:
             st.info("Please select at least 2 parameters for the pairplot.")
 
-        st.markdown("### \U0001F517 Correlation Between Weather Parameters")
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/7837/7837488.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Correlation Between Weather Parameters
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
         corr_matrix = viz_df[numeric_columns].corr()
         corr_data = corr_matrix.reset_index().melt('index')
         corr_data.columns = ['Variable 1', 'Variable 2', 'Correlation']
@@ -181,7 +325,15 @@ def show_dashboard(df):
                 st.info(f"\u2139\uFE0F Weak or no correlation ({corr_value:.2f}).")
 
     with tab3:
-        st.markdown("### \U0001F9EC Weather Pattern Clustering")
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/5464/5464694.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Weather Pattern Clustering
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
         cluster_features = st.multiselect(
             "Select Features for Clustering",
             numeric_columns,
@@ -216,10 +368,24 @@ def show_dashboard(df):
         else:
             st.info("Please select at least two numeric features to perform clustering.")
 
-        st.markdown("### \U0001F6A8 Outlier / Anomaly Detection")
-        outlier_col = st.selectbox("Select Variable to Detect Anomalies", numeric_columns, key="outlier_var")
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/17359/17359250.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Outlier/Anomaly Detection
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
+        outlier_col = st.selectbox(
+            "Select Variable to Detect Anomalies",
+            numeric_columns,
+            index=numeric_columns.index(y_axis) if y_axis in numeric_columns else 0,
+            key="outlier_var"
+        )
 
         filtered_df = df[df['District'] == district].copy()
+
         filtered_df["Z_Score"] = (filtered_df[outlier_col] - filtered_df[outlier_col].mean()) / filtered_df[outlier_col].std()
         threshold = 2
         filtered_df["Anomaly"] = filtered_df["Z_Score"].abs() > threshold
@@ -234,5 +400,13 @@ def show_dashboard(df):
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("### \U0001F9FE Anomalies Detected")
+        st.markdown(
+            f"""
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/11083/11083363.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Anomalies Detected
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
         st.dataframe(filtered_df[filtered_df["Anomaly"]][["Date", outlier_col, "Z_Score"]])
