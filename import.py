@@ -1,16 +1,23 @@
 import requests
 import pandas as pd
-from datetime import datetime
+import os
 import time
+import random
+import logging
+from datetime import datetime
+from tqdm import tqdm
 
-# Climate parameters from NASA POWER API
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# Climate parameters
 params = [
     "PRECTOTCORR", "PS", "QV2M", "RH2M", "T2M", "T2MWET", "T2M_MAX", "T2M_MIN", "T2M_RANGE",
     "TS", "WS10M", "WS10M_MAX", "WS10M_MIN", "WS10M_RANGE",
     "WS50M", "WS50M_MAX", "WS50M_MIN", "WS50M_RANGE"
 ]
 
-# Districts with latitude and longitude
+# Districts lat long sanga
 locations = [
     {"district": "Achham", "lat": 29.12, "lon": 81.3},
     {"district": "Arghakhanchi", "lat": 27.98, "lon": 83.2},
@@ -59,7 +66,6 @@ locations = [
     {"district": "Mugu", "lat": 29.57, "lon": 82.37},
     {"district": "Mustang", "lat": 28.98, "lon": 83.93},
     {"district": "Myagdi", "lat": 28.38, "lon": 83.57},
-    {"district": "Nawalparasi East", "lat": 27.63, "lon": 84.25},
     {"district": "Nawalparasi West", "lat": 27.6, "lon": 83.62},
     {"district": "Nuwakot", "lat": 27.9, "lon": 85.13},
     {"district": "Okhaldhunga", "lat": 27.33, "lon": 86.5},
@@ -88,16 +94,19 @@ locations = [
     {"district": "Taplejung", "lat": 27.35, "lon": 87.67},
     {"district": "Tehrathum", "lat": 27.03, "lon": 87.58},
     {"district": "Udayapur", "lat": 26.85, "lon": 86.65},
-    {"district": "Rukum", "lat": 28.63, "lon": 82.25}
 ]
 
+#File to save to
+output_file = "nasa_climate.csv"
 
-# Collect all data here
-all_data = []
+#Track if header has been written
+write_header = not os.path.exists(output_file)
 
-# Fetch from API for each district
-for loc in locations:
-    print(f"📡 Fetching data for {loc['district']}...")
+#Fetch data
+for loc in tqdm(locations, desc="Fetching district data"):
+    district = loc["district"]
+    logging.info(f"🌍 Fetching: {district}")
+
     url = "https://power.larc.nasa.gov/api/temporal/daily/point"
     query = {
         "parameters": ",".join(params),
@@ -114,55 +123,54 @@ for loc in locations:
         response.raise_for_status()
         json_data = response.json()
 
-        # ✅ Check if 'parameter' block exists
+        #parameter validation
         if "parameter" not in json_data["properties"]:
-            print(f"⚠️ No climate data for {loc['district']} at ({loc['lat']}, {loc['lon']})")
+            logging.warning(f"⚠️ No data for {district}")
             continue
 
         data = json_data["properties"]["parameter"]
+        dates = list(data["T2M"].keys())  # reference key
 
-        # Use T2M for date reference (since all keys share same structure)
-        dates = list(data["T2M"].keys())
-
+        rows = []
         for date in dates:
             try:
                 formatted_date = datetime.strptime(date, "%Y%m%d").strftime("%m/%d/%Y")
+                row = {
+                    "Date": formatted_date,
+                    "District": district,
+                    "Latitude": loc["lat"],
+                    "Longitude": loc["lon"],
+                    "Precip": data["PRECTOTCORR"].get(date),
+                    "Pressure": data["PS"].get(date),
+                    "Humidity_2m": data["QV2M"].get(date),
+                    "RH_2m": data["RH2M"].get(date),
+                    "Temp_2m": data["T2M"].get(date),
+                    "WetBulbTemp_2m": data["T2MWET"].get(date),
+                    "MaxTemp_2m": data["T2M_MAX"].get(date),
+                    "MinTemp_2m": data["T2M_MIN"].get(date),
+                    "TempRange_2m": data["T2M_RANGE"].get(date),
+                    "EarthSkinTemp": data["TS"].get(date),
+                    "WindSpeed_10m": data["WS10M"].get(date),
+                    "MaxWindSpeed_10m": data["WS10M_MAX"].get(date),
+                    "MinWindSpeed_10m": data["WS10M_MIN"].get(date),
+                    "WindSpeedRange_10m": data["WS10M_RANGE"].get(date),
+                    "WindSpeed_50m": data["WS50M"].get(date),
+                    "MaxWindSpeed_50m": data["WS50M_MAX"].get(date),
+                    "MinWindSpeed_50m": data["WS50M_MIN"].get(date),
+                    "WindSpeedRange_50m": data["WS50M_RANGE"].get(date)
+                }
+                rows.append(row)
             except Exception as e:
-                print(f"⛔️ Date formatting error: {date} — {e}")
-                continue
+                logging.error(f"❌ Date error in {district} on {date}: {e}")
 
-            row = {
-                "Date": formatted_date,
-                "District": loc["district"],
-                "Latitude": loc["lat"],
-                "Longitude": loc["lon"],
-                "Precip": data["PRECTOTCORR"].get(date),
-                "Pressure": data["PS"].get(date),
-                "Humidity_2m": data["QV2M"].get(date),
-                "RH_2m": data["RH2M"].get(date),
-                "Temp_2m": data["T2M"].get(date),
-                "WetBulbTemp_2m": data["T2MWET"].get(date),
-                "MaxTemp_2m": data["T2M_MAX"].get(date),
-                "MinTemp_2m": data["T2M_MIN"].get(date),
-                "TempRange_2m": data["T2M_RANGE"].get(date),
-                "EarthSkinTemp": data["TS"].get(date),
-                "WindSpeed_10m": data["WS10M"].get(date),
-                "MaxWindSpeed_10m": data["WS10M_MAX"].get(date),
-                "MinWindSpeed_10m": data["WS10M_MIN"].get(date),
-                "WindSpeedRange_10m": data["WS10M_RANGE"].get(date),
-                "WindSpeed_50m": data["WS50M"].get(date),
-                "MaxWindSpeed_50m": data["WS50M_MAX"].get(date),
-                "MinWindSpeed_50m": data["WS50M_MIN"].get(date),
-                "WindSpeedRange_50m": data["WS50M_RANGE"].get(date)
-            }
-            all_data.append(row)
+        if rows:
+            df = pd.DataFrame(rows)
+            df.to_csv(output_file, mode='a', index=False, header=write_header)
+            write_header = False
 
-        time.sleep(1)  
+        time.sleep(random.uniform(1.5, 2.5))
 
     except Exception as e:
-        print(f"❌ Error for {loc['district']}: {e}")
+        logging.error(f"❌ API error for {district}: {e}")
 
-# Convert to DataFrame and save
-df = pd.DataFrame(all_data)
-df.to_csv("nasa_climate.csv", index=False)
-print("✅ Data saved to 'nasa_climate.csv'")
+logging.info("✅ All done. Data saved to 'nasa_climate.csv'")

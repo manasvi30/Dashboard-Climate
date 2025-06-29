@@ -10,17 +10,36 @@ from sklearn.metrics import silhouette_samples, silhouette_score
 import matplotlib.cm as cm
 
 def show_compare(df):
-    st.header("📊 Compare Districts")
+    st.markdown(
+        """
+        <h2>
+            <img src="https://cdn-icons-png.flaticon.com/512/7756/7756168.png" width="30" style="vertical-align: middle; margin-right: 8px;">
+            Compare Districts
+        </h2>
+        """,
+        unsafe_allow_html=True
+    )
 
     df.columns = df.columns.str.strip()
 
-    # ✅ Safely handle missing or misnamed 'date' column
     date_col = next((col for col in df.columns if col.lower() == 'date'), None)
     if not date_col:
         st.error("❌ No column named 'date' found. Please check your file.")
         return
-
     df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+
+    min_date = df[date_col].min()
+    max_date = df[date_col].max()
+
+    start_date, end_date = st.date_input(
+        "📆 Select Date Range for Analysis",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+
+    df = df[(df[date_col] >= pd.to_datetime(start_date)) & (df[date_col] <= pd.to_datetime(end_date))]
+    st.caption(f"Data filtered from **{start_date}** to **{end_date}**")
 
     numeric_columns = df.select_dtypes(include='number').columns.tolist()
     if 'Unnamed: 0' in numeric_columns:
@@ -36,17 +55,17 @@ def show_compare(df):
     with col3:
         x_axis = st.selectbox("X-axis Column", [col for col in df.columns if col != 'Unnamed: 0'])
     with col4:
-        y_axis = st.selectbox("Y-axis Column (Numeric)", numeric_columns)
+        y_axis = st.selectbox("Y-axis Column", numeric_columns)
 
     def preprocess_data(district):
-        filtered = df[df['District'] == district].copy()
+        filtered_df = df[df['District'] == district].copy()
         if freq_option == "Monthly":
-            filtered['Period'] = pd.to_datetime(filtered[date_col]).dt.to_period('M').astype(str)
+            filtered_df['Period'] = filtered_df[date_col].dt.to_period('M').astype(str)
         elif freq_option == "Yearly":
-            filtered['Period'] = pd.to_datetime(filtered[date_col]).dt.year.astype(str)
+            filtered_df['Period'] = filtered_df[date_col].dt.year.astype(str)
         else:
-            filtered['Period'] = pd.to_datetime(filtered[date_col]).astype(str)
-        return filtered, 'Period'
+            filtered_df['Period'] = filtered_df[date_col].dt.date.astype(str)
+        return filtered_df, 'Period'
 
     try:
         viz_df1, x1 = preprocess_data(district1)
@@ -55,114 +74,128 @@ def show_compare(df):
         st.error(f"⚠️ Failed during preprocessing: {e}")
         return
 
-    tab1, tab2 = st.tabs(["📈 Visual Comparison", "🧠Scatterplot and Clustering"])
+    tab1, tab2 = st.tabs([
+        " Visual Comparison","Scatterplot and Clustering"
+    ])
 
     with tab1:
         col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"###  {district1}")
-            st.dataframe(viz_df1.head(), use_container_width=True)
+        for i, (viz_df, district, chart_key) in enumerate(zip([viz_df1, viz_df2], [district1, district2], ["chart_type1", "chart_type2"])):
+            with [col1, col2][i]:
 
-            st.markdown(f"### 📈 Bar Chart: Average {y_axis} vs Period")
-            bar_data_1 = viz_df1.groupby(x1)[y_axis].mean().sort_index()
-            st.bar_chart(bar_data_1)
+                st.markdown(
+                    f"""
+                    <h4>
+                        <img src="https://cdn-icons-png.flaticon.com/512/8451/8451381.png" width="20" style="vertical-align: middle; margin-right: 6px;">
+                        {district} ({freq_option} view)
+                    </h4>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-            if freq_option == "Monthly":
-                viz_df1['Period'] = pd.to_datetime(viz_df1[x1] + "-01", errors='coerce')
-            elif freq_option == "Yearly":
-                viz_df1['Period'] = pd.to_datetime(viz_df1[x1] + "-01-01", errors='coerce')
-            else:
-                viz_df1['Period'] = pd.to_datetime(viz_df1[x1], errors='coerce')
+                st.dataframe(viz_df.head(), use_container_width=True)
 
-            # Aggregate to avoid vertical lines
-            agg_data1 = viz_df1.groupby('Period', as_index=False)[y_axis].mean()
+                st.markdown(
+                    f"""
+                    <h5>
+                        <img src="https://cdn-icons-png.flaticon.com/512/4926/4926731.png" width="20" style="vertical-align: middle; margin-right: 6px;">
+                        {freq_option} Aggregated Data
+                    </h5>
+                    """,
+                    unsafe_allow_html=True
+                )
+                aggregated_df = viz_df.groupby('Period')[numeric_columns].mean().reset_index()
+                st.dataframe(aggregated_df, use_container_width=True)
 
-            # Plotting
-            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs Period")
-            chart_type1 = st.radio(f"Chart Type for {district1}", ["Line Chart", "Area Chart"], horizontal=True, key="chart_type1")
+                st.markdown(
+                    f"""
+                    <h5>
+                        <img src="https://cdn-icons-png.flaticon.com/512/3586/3586022.png" width="20" style="vertical-align: middle; margin-right: 6px;">
+                        Bar Chart: Average {y_axis} per {x_axis}
+                    </h5>
+                    """,
+                    unsafe_allow_html=True
+                )
+                if x_axis in aggregated_df.columns and y_axis in aggregated_df.columns:
+                    plot_data = aggregated_df[[x_axis, y_axis]].dropna()
+                    import plotly.express as px
+                    fig = px.bar(plot_data, x=x_axis, y=y_axis)
+                    st.plotly_chart(fig, use_container_width=True, key=f"bar_chart_{district}")
+                else:
+                    st.warning(f"⚠️ {x_axis} or {y_axis} not found in aggregated data.")
 
-            if chart_type1 == "Line Chart":
-                chart = alt.Chart(agg_data1).mark_line().encode(
-                    x=alt.X("Period:T", title="Time"),
-                    y=alt.Y(y_axis, title=y_axis),
-                    tooltip=["Period", y_axis]
-                ).interactive()
-            else:
-                chart = alt.Chart(agg_data1).mark_area(opacity=0.5).encode(
-                    x=alt.X("Period:T", title="Time"),
-                    y=alt.Y(y_axis, title=y_axis),
-                    tooltip=["Period", y_axis]
-                ).interactive()
+                if freq_option == "Monthly":
+                    viz_df['Period'] = pd.to_datetime(viz_df['Period'] + "-01", errors='coerce')
+                elif freq_option == "Yearly":
+                    viz_df['Period'] = pd.to_datetime(viz_df['Period'] + "-01-01", errors='coerce')
+                else:
+                    viz_df['Period'] = pd.to_datetime(viz_df['Period'], errors='coerce')
 
-            st.altair_chart(chart, use_container_width=True)
+                agg_data = viz_df.groupby('Period', as_index=False)[y_axis].mean()
 
+                st.markdown(
+                    f"""
+                    <h5>
+                        <img src="https://cdn-icons-png.flaticon.com/512/7495/7495244.png" width="20" style="vertical-align: middle; margin-right: 6px;">
+                        Line or Area Chart: {y_axis} vs Period
+                    </h5>
+                    """,
+                    unsafe_allow_html=True
+                )
+                chart_type = st.radio(f"Chart Type for {district}", ["Line Chart", "Area Chart"], horizontal=True, key=chart_key)
 
-        with col2:
-            st.markdown(f"###  {district2}")
-            st.dataframe(viz_df2.head(), use_container_width=True)
+                if chart_type == "Line Chart":
+                    chart = alt.Chart(agg_data).mark_line().encode(
+                        x=alt.X("Period:T", title="Time"),
+                        y=alt.Y(y_axis, title=y_axis),
+                        tooltip=["Period", y_axis]
+                    ).interactive()
+                else:
+                    chart = alt.Chart(agg_data).mark_area(opacity=0.5).encode(
+                        x=alt.X("Period:T", title="Time"),
+                        y=alt.Y(y_axis, title=y_axis),
+                        tooltip=["Period", y_axis]
+                    ).interactive()
 
-            st.markdown(f"### 📈 Bar Chart: Average {y_axis} vs Period")
-            bar_data_2 = viz_df2.groupby(x2)[y_axis].mean().sort_index()
-            st.bar_chart(bar_data_2)
-
-           # Convert 'Period' to datetime based on frequency
-            if freq_option == "Monthly":
-                viz_df2['Period'] = pd.to_datetime(viz_df2[x2] + "-01", errors='coerce')
-            elif freq_option == "Yearly":
-                viz_df2['Period'] = pd.to_datetime(viz_df2[x2] + "-01-01", errors='coerce')
-            else:
-                viz_df2['Period'] = pd.to_datetime(viz_df2[x2], errors='coerce')
-
-            agg_data2 = viz_df2.groupby('Period', as_index=False)[y_axis].mean()
-
-            st.markdown(f"### 📈 Line or Area Chart: {y_axis} vs Period")
-            chart_type2 = st.radio(
-                f"Chart Type for {district2}",
-                ["Line Chart", "Area Chart"],
-                horizontal=True,
-                key=f"chart_type_{district2}"
-            )
-
-            if chart_type2 == "Line Chart":
-                chart = alt.Chart(agg_data2).mark_line().encode(
-                    x=alt.X("Period:T", title="Time"),
-                    y=alt.Y(y_axis, title=y_axis),
-                    tooltip=["Period", y_axis]
-                ).interactive()
-            else:
-                chart = alt.Chart(agg_data2).mark_area(opacity=0.5).encode(
-                    x=alt.X("Period:T", title="Time"),
-                    y=alt.Y(y_axis, title=y_axis),
-                    tooltip=["Period", y_axis]
-                ).interactive()
-
-            st.altair_chart(chart, use_container_width=True)
+                st.altair_chart(chart, use_container_width=True)
 
     with tab2:
-        st.markdown("## 🔹 Combined Scatter Comparison")
+        st.markdown(
+            """
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/7837/7837488.png" width="20" style="vertical-align: middle; margin-right: 6px;">
+                Combined Scatter Comparison
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
+        agg1 = viz_df1.groupby('Period')[[x_axis, y_axis]].mean().reset_index()
+        agg1['District'] = district1
+        agg2 = viz_df2.groupby('Period')[[x_axis, y_axis]].mean().reset_index()
+        agg2['District'] = district2
 
-        viz_df1['District'] = district1
-        viz_df2['District'] = district2
+        combined_agg_df = pd.concat([agg1, agg2], ignore_index=True).dropna()
 
-        combined_df = pd.concat([
-            viz_df1[[x1, y_axis, 'District']].rename(columns={x1: 'Time'}),
-            viz_df2[[x2, y_axis, 'District']].rename(columns={x2: 'Time'})
-        ], ignore_index=True)
-
-        combined_df['Time'] = pd.to_datetime(combined_df['Time'], errors='coerce')
-        combined_df = combined_df.dropna(subset=['Time', y_axis])
-        if not combined_df.empty:
-            scatter_chart = alt.Chart(combined_df).mark_circle(size=60).encode(
-                x=alt.X('Time:T', title="Time"),
+        if not combined_agg_df.empty:
+            scatter_chart_agg = alt.Chart(combined_agg_df).mark_circle(size=60).encode(
+                x=alt.X(x_axis, title=x_axis),
                 y=alt.Y(y_axis, title=y_axis),
                 color=alt.Color('District:N', legend=alt.Legend(title="District")),
-                tooltip=['Time', y_axis, 'District']
+                tooltip=['Period', x_axis, y_axis, 'District']
             ).interactive().properties(height=400)
-            st.altair_chart(scatter_chart, use_container_width=True)
+            st.altair_chart(scatter_chart_agg, use_container_width=True)
         else:
-            st.warning("Not enough data to display the scatter chart.")
+            st.warning("Not enough data to display the aggregated scatter plot.")
 
-        st.markdown("## 🧠 Clustering Analysis")
+        st.markdown(
+            """
+            <h4>
+                <img src="https://cdn-icons-png.flaticon.com/512/5464/5464694.png" width="40" style="vertical-align: middle; margin-right: 6px;">
+                Clustering Analysis
+            </h4>
+            """,
+            unsafe_allow_html=True
+        )
         cluster_features = st.multiselect(
             "Select Features for Clustering",
             numeric_columns,
@@ -174,15 +207,12 @@ def show_compare(df):
             x_plot = st.selectbox("X-axis for Cluster Plot", cluster_features, index=0, key="shared_x")
             y_plot = st.selectbox("Y-axis for Cluster Plot", cluster_features, index=1 if len(cluster_features) > 1 else 0, key="shared_y")
 
-            clustering_mode = st.radio("Choose clustering mode:", [
-                "Per District (Time-Series)", 
-                "All Districts (Aggregate + Silhouette)"
-            ])
+            clustering_mode = st.radio("Choose clustering mode:", ["Per District (Time-Series)", "All Districts (Aggregate + Silhouette)"])
 
             if clustering_mode == "Per District (Time-Series)":
                 n_clusters = st.slider("Select Number of Clusters (K)", 2, 10, 3)
                 for df_set, dist in zip([viz_df1, viz_df2], [district1, district2]):
-                    st.markdown(f"### 📍 {dist} Clustering")
+                    st.markdown(f"### \U0001F4CD {dist} Clustering")
                     cluster_df = df_set[cluster_features].dropna()
                     scaler = StandardScaler()
                     scaled_data = scaler.fit_transform(cluster_df)
@@ -219,7 +249,7 @@ def show_compare(df):
                     y_upper = y_lower + size
                     color = cm.nipy_spectral(float(i) / n_clusters)
                     ax.fill_betweenx(np.arange(y_lower, y_upper), 0, cluster_vals,
-                                     facecolor=color, edgecolor=color, alpha=0.7)
+                                    facecolor=color, edgecolor=color, alpha=0.7)
                     ax.text(-0.05, y_lower + 0.5 * size, str(i))
                     y_lower = y_upper + 10
                 ax.axvline(avg_score, color="red", linestyle="--")
@@ -227,4 +257,3 @@ def show_compare(df):
                 ax.set_ylabel("Cluster")
                 ax.set_title("Silhouette Plot for All-District K-Means Clustering")
                 st.pyplot(fig)
-
