@@ -24,7 +24,7 @@ def show_compare(df):
 
     date_col = next((col for col in df.columns if col.lower() == 'date'), None)
     if not date_col:
-        st.error("❌ No column named 'date' found. Please check your file.")
+        st.error("No column named 'date' found. Please check your file.")
         return
     df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
 
@@ -32,7 +32,7 @@ def show_compare(df):
     max_date = df[date_col].max()
 
     start_date, end_date = st.date_input(
-        "📆 Select Date Range for Analysis",
+        "Select Date Range for Analysis",
         value=(min_date, max_date),
         min_value=min_date,
         max_value=max_date
@@ -71,7 +71,7 @@ def show_compare(df):
         viz_df1, x1 = preprocess_data(district1)
         viz_df2, x2 = preprocess_data(district2)
     except Exception as e:
-        st.error(f"⚠️ Failed during preprocessing: {e}")
+        st.error(f"Failed during preprocessing: {e}")
         return
 
     tab1, tab2 = st.tabs([

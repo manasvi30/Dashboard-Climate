@@ -30,7 +30,7 @@ def show_dashboard(df):
     max_date = df[date_col].max()
 
     start_date, end_date = st.date_input(
-        "📆 Select Date Range for Analysis",
+        "Select Date Range for Analysis",
         value=(min_date, max_date),
         min_value=min_date,
         max_value=max_date
@@ -128,7 +128,7 @@ def show_dashboard(df):
         st.dataframe(aggregated_df, use_container_width=True)
         csv = aggregated_df.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="⬇️ Download Aggregated CSV",
+            label="Download Aggregated CSV",
             data=csv,
             file_name=f"{district.lower().replace(' ', '_')}_{freq_option.lower()}_aggregated.csv",
             mime='text/csv'
@@ -191,7 +191,7 @@ def show_dashboard(df):
         # Pull y and Period columns
         plot_data = aggregated_df[[y_axis, 'Period']].dropna().copy()
 
-        # Convert Period to datetime depending on frequency
+        # Convert Period to monthly, yearly
         if freq_option == "Monthly":
             plot_data['Period'] = pd.to_datetime(plot_data['Period'], format="%Y-%m", errors="coerce")
         elif freq_option == "Yearly":
