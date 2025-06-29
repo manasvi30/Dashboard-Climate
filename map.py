@@ -27,7 +27,7 @@ def show_map(df):
         st.warning("No numeric data found to map.")
         return
 
-    selected_feature = st.selectbox("🌡️ Select a Climate Feature", numeric_columns)
+    selected_feature = st.selectbox("Select a Climate Feature", numeric_columns)
 
     # Load Nepal district geojson
     geo_url = "https://raw.githubusercontent.com/mesaugat/geojson-nepal/master/nepal-districts.geojson"
