@@ -18,10 +18,8 @@ def show_map(df):
         st.error("Dataset must contain both 'District' and 'Date' columns.")
         return
 
-    # Convert 'Date' to datetime
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
 
-    # Detect numeric columns
     numeric_columns = df.select_dtypes(include='number').columns.tolist()
     if 'Unnamed: 0' in numeric_columns:
         numeric_columns.remove('Unnamed: 0')
@@ -29,7 +27,6 @@ def show_map(df):
         st.warning("No numeric data found to map.")
         return
 
-    # Feature selection and year filter
     color_scales = px.colors.named_colorscales()
     default_scale = "ylgnbu" if "ylgnbu" in color_scales else color_scales[0]
 
@@ -43,10 +40,9 @@ def show_map(df):
     max_year = df['Date'].dt.year.max()
     selected_year = st.slider("Select Year", min_year, max_year, max_year)
 
-    # Filter by selected year
     df_year = df[df['Date'].dt.year == selected_year]
 
-    # Load GeoJSON
+    # Load GeoJSON from Mesaugat repo (legacy 77-districts)
     geo_url = "https://raw.githubusercontent.com/mesaugat/geojson-nepal/master/nepal-districts.geojson"
     try:
         geo_data = requests.get(geo_url).json()
@@ -54,27 +50,25 @@ def show_map(df):
         st.error("Failed to load GeoJSON data.")
         return
 
-    # Clean and aggregate data
     df_year['District'] = df_year['District'].astype(str).str.strip().str.upper()
     df_map = df_year.groupby("District")[selected_feature].mean().reset_index()
 
-    nepal_geo_districts = [f['properties']['DISTRICT'].strip().upper() for f in geo_data['features']]
-    matched_districts = df_map['District'].isin(nepal_geo_districts)
+    geo_districts = [f['properties']['DISTRICT'].strip().upper() for f in geo_data['features']]
+    matched_districts = df_map['District'].isin(geo_districts)
     unmatched_count = (~matched_districts).sum()
+
     if unmatched_count > 0:
         unmatched = df_map[~matched_districts]['District'].tolist()
         st.warning(f"Unmatched Districts (not shown): {', '.join(unmatched)}")
-    df_map = df_map[matched_districts]
 
+    df_map = df_map[matched_districts]
     if df_map.empty:
         st.error("No valid districts found for mapping.")
         return
 
-    # Max/Min annotation
     max_row = df_map.loc[df_map[selected_feature].idxmax()]
     min_row = df_map.loc[df_map[selected_feature].idxmin()]
 
-    # Create the choropleth map
     fig = px.choropleth(
         df_map,
         geojson=geo_data,
@@ -86,9 +80,8 @@ def show_map(df):
         hover_name="District"
     )
     fig.update_geos(fitbounds="locations", visible=False)
-    fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+    fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
 
-    # Annotation box
     fig.add_annotation(
         text=f"<b>Highest</b>: {max_row['District'].title()}<br><b>Lowest</b>: {min_row['District'].title()}",
         x=1.02, y=0.2,
@@ -101,5 +94,17 @@ def show_map(df):
         borderwidth=1
     )
 
-    # Show the map
     st.plotly_chart(fig, use_container_width=True)
+
+# For testing - load your CSV file here
+def main():
+    st.title("🗺️ Nepal Climate Choropleth Demo")
+    uploaded_file = st.file_uploader("Upload your dataset (with 'District' and 'Date')", type=["csv"])
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+        show_map(df)
+    else:
+        st.info("Please upload a CSV file to begin.")
+
+if __name__ == "__main__":
+    main()

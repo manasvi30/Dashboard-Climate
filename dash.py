@@ -163,7 +163,7 @@ def show_dashboard(df):
                 f"""
                 <h4>
                     <img src="https://cdn-icons-png.flaticon.com/512/4215/4215828.png" width="40" style="vertical-align: middle; margin-right: 6px;">
-                    Box Plot: {y_axis} vs {x_axis}
+                    Box Plot: {y_axis}
                 </h4>
                 """,
                 unsafe_allow_html=True
