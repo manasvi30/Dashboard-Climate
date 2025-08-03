@@ -77,8 +77,7 @@ streamlit run app.py
 
 ---
 
-## Screenshots
-<img width="693" height="377" alt="image" src="https://github.com/user-attachments/assets/442d7411-cffd-4f22-951d-70987ec17ca7" />
+
 
 
 
