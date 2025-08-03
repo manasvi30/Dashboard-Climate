@@ -75,10 +75,6 @@ pip install streamlit pandas numpy plotly altair scikit-learn matplotlib seaborn
 streamlit run app.py
 
 
----
-
-
-
 
 
 
