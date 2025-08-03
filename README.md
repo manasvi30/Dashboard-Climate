@@ -57,14 +57,6 @@ This project presents an **interactive web-based dashboard** for exploring and v
 
 ---
 
-## Future Improvements
-
-- Upload custom GeoJSON files for non-Nepal datasets
-- Anomaly classification and interpretation
-- Support for Excel, JSON, and other formats
-- UI-based preprocessing and data cleaning tools
-
----
 
 ## Run Locally
 
