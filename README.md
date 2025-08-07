@@ -1,3 +1,5 @@
+
+
 # Climate Dashboard – Exploratory Climate Data Analysis & Visualization
 
 ## Overview
@@ -65,6 +67,45 @@ git clone https://github.com/yourusername/climate-dashboard.git
 cd climate-dashboard
 pip install streamlit pandas numpy plotly altair scikit-learn matplotlib seaborn geopandas
 streamlit run app.py
+```
+
+<h2> Climate Dashboard Screens</h2>
+### First Page
+   <img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Start%20Page.png?raw=true" width="380"/>
+   
+### Single District
+<table>
+  <tr>
+     <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Single2.png?raw=true" width="380"/></td>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Single.png?raw=true" width="380"/></td>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Single1.png?raw=true" width="380"/></td>
+  </tr>
+
+  <tr>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Single3.png?raw=true" width="380"/></td>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Single4.png?raw=true" width="380"/></td>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Single5.png?raw=true" width="380"/></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Single6.png?raw=true" width="380"/></td>
+  </tr>
+</table>
+
+### Compare District
+<table>
+  <tr>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Compare.png?raw=true" width="380"/></td>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Compare2.png?raw=true" width="380"/></td>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Compare3.png?raw=true" width="380"/></td>
+  </tr>
+</table>
+
+### Map
+<table>
+  <tr>
+    <td><img src="https://github.com/manasvi30/climate-dashboard/blob/dem/Images/Map.png?raw=true" width="380"/></td>
+  </tr>
+</table>
 
 
 
